@@ -1,0 +1,1490 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auditoria de Performance — Concreserv | 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root {
+  --bg: #0a0c0f;
+  --bg-2: #111418;
+  --bg-3: #181d24;
+  --bg-4: #1f262f;
+  --border: rgba(255,255,255,0.07);
+  --border-2: rgba(255,255,255,0.12);
+  --text: #e8eaec;
+  --text-2: #8a9199;
+  --text-3: #5a6370;
+  --accent: #ff5533;
+  --accent-2: #ff7a5c;
+  --blue: #3b82f6;
+  --blue-dim: #1e3a5f;
+  --green: #22c55e;
+  --green-dim: #14532d;
+  --amber: #f59e0b;
+  --amber-dim: #451a03;
+  --red: #ef4444;
+  --red-dim: #450a0a;
+  --font-sans: 'DM Sans', sans-serif;
+  --font-display: 'Syne', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ─── SCROLLBAR ─────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-2); }
+::-webkit-scrollbar-thumb { background: var(--bg-4); border-radius: 3px; }
+
+/* ─── LAYOUT ─────────────────────────────────── */
+.shell { display: flex; min-height: 100vh; }
+
+.sidebar {
+  width: 220px;
+  min-width: 220px;
+  background: var(--bg-2);
+  border-right: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.main { flex: 1; overflow-x: hidden; }
+
+/* ─── SIDEBAR ─────────────────────────────────── */
+.logo-block {
+  padding: 24px 20px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.logo-tag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--accent);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.logo-name {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.2;
+}
+.logo-date {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 4px;
+}
+
+.nav { padding: 12px 0; flex: 1; }
+.nav-section {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-3);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 16px 20px 6px;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  font-size: 13px;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: all 0.15s;
+  border-left: 2px solid transparent;
+  text-decoration: none;
+}
+.nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+.nav-item.active { color: var(--text); border-left-color: var(--accent); background: rgba(255,85,51,0.06); }
+.nav-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+.sidebar-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+}
+.health-bar { margin-top: 8px; }
+.health-label { font-size: 11px; color: var(--text-3); margin-bottom: 6px; display: flex; justify-content: space-between; }
+.bar-track { height: 3px; background: var(--bg-4); border-radius: 2px; overflow: hidden; margin-bottom: 4px; }
+.bar-fill { height: 100%; border-radius: 2px; }
+
+/* ─── HEADER ─────────────────────────────────── */
+.page-header {
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+  padding: 32px 40px 24px;
+  position: relative;
+  overflow: hidden;
+}
+.page-header::before {
+  content: '';
+  position: absolute;
+  top: -80px; right: -80px;
+  width: 300px; height: 300px;
+  background: radial-gradient(circle, rgba(255,85,51,0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+.header-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--accent);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.header-title {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.header-sub { font-size: 13px; color: var(--text-2); }
+
+.header-scores {
+  display: flex;
+  gap: 16px;
+  margin-top: 24px;
+}
+.score-chip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+}
+.score-num {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+}
+.score-label { font-size: 11px; color: var(--text-2); }
+.score-channel { font-size: 10px; font-family: var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; }
+
+/* ─── CONTENT ─────────────────────────────────── */
+.content { padding: 32px 40px; }
+.section { margin-bottom: 48px; scroll-margin-top: 20px; }
+
+.section-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.section-num {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+  min-width: 28px;
+}
+.section-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+.section-tag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-3);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+/* ─── CARDS ─────────────────────────────────── */
+.card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.card-inner { padding: 20px; }
+.card + .card { margin-top: 12px; }
+
+/* ─── METRICS GRID ────────────────────────────── */
+.metrics-grid { display: grid; gap: 10px; }
+.metrics-4 { grid-template-columns: repeat(4, 1fr); }
+.metrics-3 { grid-template-columns: repeat(3, 1fr); }
+.metrics-2 { grid-template-columns: repeat(2, 1fr); }
+
+.metric-tile {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 18px;
+}
+.metric-label {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.metric-value {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.metric-sub { font-size: 11px; color: var(--text-3); }
+
+/* ─── TABLE ─────────────────────────────────── */
+table { width: 100%; border-collapse: collapse; }
+th {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-3);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  vertical-align: top;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+.td-name { font-weight: 500; color: var(--text); }
+.td-sub { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+.td-mono { font-family: var(--font-mono); font-size: 11px; }
+
+/* ─── BADGES ─────────────────────────────────── */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.badge-red { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
+.badge-amber { background: rgba(245,158,11,0.12); color: #fcd34d; border: 1px solid rgba(245,158,11,0.25); }
+.badge-green { background: rgba(34,197,94,0.12); color: #86efac; border: 1px solid rgba(34,197,94,0.25); }
+.badge-blue { background: rgba(59,130,246,0.12); color: #93c5fd; border: 1px solid rgba(59,130,246,0.25); }
+.badge-gray { background: rgba(255,255,255,0.06); color: var(--text-2); border: 1px solid var(--border); }
+
+/* ─── ALERTS ─────────────────────────────────── */
+.alert {
+  display: flex;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+.alert-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.alert-body { flex: 1; }
+.alert-title { font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 3px; }
+.alert-desc { font-size: 12px; color: var(--text-2); line-height: 1.55; }
+.alert-red { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); }
+.alert-red .alert-icon { background: rgba(239,68,68,0.2); color: #fca5a5; }
+.alert-amber { background: rgba(245,158,11,0.07); border: 1px solid rgba(245,158,11,0.18); }
+.alert-amber .alert-icon { background: rgba(245,158,11,0.2); color: #fcd34d; }
+.alert-green { background: rgba(34,197,94,0.07); border: 1px solid rgba(34,197,94,0.18); }
+.alert-green .alert-icon { background: rgba(34,197,94,0.2); color: #86efac; }
+
+/* ─── ACTION TABLE ────────────────────────────── */
+.action-item {
+  display: grid;
+  grid-template-columns: 32px 1fr 90px 90px 90px;
+  gap: 10px;
+  align-items: start;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.action-item:last-child { border-bottom: none; }
+.action-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.num-alta { background: rgba(239,68,68,0.18); color: #fca5a5; }
+.num-media { background: rgba(245,158,11,0.15); color: #fcd34d; }
+.num-baixa { background: rgba(34,197,94,0.12); color: #86efac; }
+.action-title { font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 3px; }
+.action-detail { font-size: 11px; color: var(--text-2); line-height: 1.5; }
+.action-meta { font-size: 11px; color: var(--text-2); }
+.col-header { font-family: var(--font-mono); font-size: 9px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 0 10px; border-bottom: 1px solid var(--border-2); display: grid; grid-template-columns: 32px 1fr 90px 90px 90px; gap: 10px; }
+
+/* ─── FUNNEL ─────────────────────────────────── */
+.funnel-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.funnel-stage { border-radius: 10px; padding: 18px; border: 1px solid; }
+.funnel-top { background: rgba(59,130,246,0.06); border-color: rgba(59,130,246,0.2); }
+.funnel-mid { background: rgba(245,158,11,0.06); border-color: rgba(245,158,11,0.2); }
+.funnel-bot { background: rgba(34,197,94,0.06); border-color: rgba(34,197,94,0.2); }
+.funnel-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 8px; }
+.funnel-heading { font-size: 14px; font-weight: 500; margin-bottom: 10px; }
+.funnel-items { font-size: 12px; color: var(--text-2); line-height: 1.9; }
+.funnel-budget { margin-top: 12px; font-family: var(--font-mono); font-size: 10px; }
+
+/* ─── CHARTS ─────────────────────────────────── */
+.chart-wrap { position: relative; }
+
+/* ─── PROJECTION TABLE ────────────────────────── */
+.proj-row {
+  display: grid;
+  grid-template-columns: 1fr 100px 100px 100px;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+}
+.proj-row:last-child { border-bottom: none; }
+.proj-header {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-2);
+}
+.proj-metric { font-size: 13px; font-weight: 500; }
+.proj-current { font-family: var(--font-mono); font-size: 12px; color: var(--text-2); text-align: right; }
+.proj-target { font-family: var(--font-mono); font-size: 12px; color: var(--green); text-align: right; font-weight: 500; }
+.proj-delta { font-family: var(--font-mono); font-size: 11px; text-align: right; }
+
+/* ─── QUESTIONS ─────────────────────────────── */
+.question-item {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+.question-item:last-child { border-bottom: none; }
+.q-num {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.q-text { font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 6px; }
+.q-context { font-size: 12px; color: var(--text-2); line-height: 1.6; }
+.q-tag { display: inline-block; margin-top: 6px; }
+
+/* ─── DIVIDER ─────────────────────────────────── */
+.divider { border: none; border-top: 1px solid var(--border); margin: 0; }
+
+/* ─── FREQ BAR ─────────────────────────────── */
+.freq-row {
+  display: grid;
+  grid-template-columns: 1fr 60px 160px 90px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.freq-row:last-child { border-bottom: none; }
+.freq-bar-wrap { background: var(--bg-4); border-radius: 2px; height: 4px; overflow: hidden; }
+.freq-bar-fill { height: 100%; border-radius: 2px; }
+
+/* ─── SUMMARY BOX ─────────────────────────────── */
+.summary-box {
+  background: var(--bg-3);
+  border: 1px solid var(--border-2);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.summary-box p { font-size: 13px; color: var(--text-2); line-height: 1.7; }
+.summary-box strong { color: var(--text); }
+
+/* ─── RESPONSIVE ─────────────────────────────── */
+@media (max-width: 900px) {
+  .shell { flex-direction: column; }
+  .sidebar { width: 100%; height: auto; position: static; flex-direction: row; flex-wrap: wrap; overflow-x: auto; }
+  .logo-block { flex: none; }
+  .metrics-4, .metrics-3 { grid-template-columns: repeat(2, 1fr); }
+  .funnel-grid { grid-template-columns: 1fr; }
+  .action-item { grid-template-columns: 32px 1fr; }
+  .col-header { grid-template-columns: 32px 1fr; }
+}
+
+@media print {
+  .sidebar { display: none; }
+  .section { page-break-inside: avoid; }
+}
+
+/* ─── ANIMATIONS ─────────────────────────────── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.section { animation: fadeInUp 0.4s ease both; }
+.section:nth-child(1) { animation-delay: 0.05s; }
+.section:nth-child(2) { animation-delay: 0.1s; }
+.section:nth-child(3) { animation-delay: 0.15s; }
+.section:nth-child(4) { animation-delay: 0.2s; }
+.section:nth-child(5) { animation-delay: 0.25s; }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+<!-- ─── SIDEBAR ─────────────────────────────────── -->
+<aside class="sidebar">
+  <div class="logo-block">
+    <div class="logo-tag">Diagnóstico</div>
+    <div class="logo-name">Concreserv</div>
+    <div class="logo-date">Abril 2026 · 30 dias</div>
+  </div>
+  <nav class="nav">
+    <div class="nav-section">Conteúdo</div>
+    <a class="nav-item active" href="#exec">
+      <span class="nav-dot" style="background:#ff5533"></span>Resumo executivo
+    </a>
+    <a class="nav-item" href="#problemas">
+      <span class="nav-dot" style="background:#ef4444"></span>Problemas críticos
+    </a>
+    <a class="nav-item" href="#meta">
+      <span class="nav-dot" style="background:#3b82f6"></span>Meta Ads
+    </a>
+    <a class="nav-item" href="#google">
+      <span class="nav-dot" style="background:#22c55e"></span>Google Ads
+    </a>
+    <a class="nav-item" href="#acoes">
+      <span class="nav-dot" style="background:#f59e0b"></span>Plano de ação
+    </a>
+    <a class="nav-item" href="#projecoes">
+      <span class="nav-dot" style="background:#a855f7"></span>Projeções
+    </a>
+    <a class="nav-item" href="#perguntas">
+      <span class="nav-dot" style="background:#06b6d4"></span>Perguntas
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+    <div style="font-size:10px; color:var(--text-3); font-family:var(--font-mono); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:10px;">Saúde das contas</div>
+    <div class="health-bar">
+      <div class="health-label"><span>Meta Ads</span><span style="color:#ef4444; font-family:var(--font-mono);">38/100</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:38%; background:#ef4444;"></div></div>
+    </div>
+    <div class="health-bar">
+      <div class="health-label"><span>Google Ads</span><span style="color:#f59e0b; font-family:var(--font-mono);">52/100</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:52%; background:#f59e0b;"></div></div>
+    </div>
+  </div>
+</aside>
+
+<!-- ─── MAIN ─────────────────────────────────────── -->
+<main class="main">
+
+  <!-- HEADER -->
+  <div class="page-header">
+    <div class="header-eyebrow">Auditoria de Performance · Meta Ads + Google Ads</div>
+    <div class="header-title">Diagnóstico Completo — Concreserv</div>
+    <div class="header-sub">Período: últimos 30 dias · Gerado em 29/04/2026 · Fonte: Windsor.ai</div>
+    <div class="header-scores">
+      <div class="score-chip">
+        <div>
+          <div class="score-num" style="color:#ef4444;">38</div>
+        </div>
+        <div>
+          <div class="score-channel" style="color:#3b82f6;">Meta Ads</div>
+          <div class="score-label">Score de saúde</div>
+          <div style="font-size:10px; color:var(--red);">Crítico — ação imediata</div>
+        </div>
+      </div>
+      <div class="score-chip">
+        <div>
+          <div class="score-num" style="color:#f59e0b;">52</div>
+        </div>
+        <div>
+          <div class="score-channel" style="color:#22c55e;">Google Ads</div>
+          <div class="score-label">Score de saúde</div>
+          <div style="font-size:10px; color:var(--amber);">Moderado — otimizável</div>
+        </div>
+      </div>
+      <div class="score-chip">
+        <div>
+          <div class="score-num" style="color:var(--text);">R$ 16,8k</div>
+        </div>
+        <div>
+          <div class="score-channel" style="color:var(--text-2);">Ambos os canais</div>
+          <div class="score-label">Investimento total (30d)</div>
+          <div style="font-size:10px; color:var(--red);">≈ R$1.952 em desperdício</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ─── 1. RESUMO EXECUTIVO ─────────────────── -->
+    <section class="section" id="exec">
+      <div class="section-header">
+        <span class="section-num">01</span>
+        <span class="section-title">Resumo executivo</span>
+        <span class="section-tag">Overview</span>
+      </div>
+
+      <div class="summary-box">
+        <p>A conta <strong>Concreserv</strong> investe em duas plataformas com dinâmicas muito distintas. No <strong>Google Ads</strong>, há campanhas de busca funcionando bem com CPA eficiente, mas um desperdício de R$1.124 em campanha sem conversão e uma estrutura acumulada de 50+ campanhas inativas. No <strong>Meta Ads</strong>, o maior problema é estrutural: <strong>zero conversões rastreadas</strong> em R$12.822 investidos, frequências de remarketing absurdas (até 48x), e uma arquitetura focada em awareness sem funil de conversão configurado. A prioridade número um é resolver o rastreamento Meta antes de qualquer outra otimização.</p>
+      </div>
+
+      <div class="metrics-grid metrics-4" style="margin-bottom:16px;">
+        <div class="metric-tile">
+          <div class="metric-label">Total investido (30d)</div>
+          <div class="metric-value" style="color:var(--text);">R$ 16.822</div>
+          <div class="metric-sub">Meta + Google Ads</div>
+        </div>
+        <div class="metric-tile">
+          <div class="metric-label">Conversões — Google</div>
+          <div class="metric-value" style="color:var(--green);">2.481</div>
+          <div class="metric-sub">Search + Demand Gen</div>
+        </div>
+        <div class="metric-tile">
+          <div class="metric-label">Conversões — Meta</div>
+          <div class="metric-value" style="color:var(--red);">0</div>
+          <div class="metric-sub">Zero registradas — crítico</div>
+        </div>
+        <div class="metric-tile">
+          <div class="metric-label">Desperdício estimado</div>
+          <div class="metric-value" style="color:var(--amber);">R$ 1.952</div>
+          <div class="metric-sub">Google + Meta (saturação)</div>
+        </div>
+      </div>
+
+      <div class="metrics-grid metrics-4">
+        <div class="metric-tile">
+          <div class="metric-label">CPA — Search principal</div>
+          <div class="metric-value" style="color:var(--green);">R$ 6,32</div>
+          <div class="metric-sub">771 conversões</div>
+        </div>
+        <div class="metric-tile">
+          <div class="metric-label">CPA — Institucional</div>
+          <div class="metric-value" style="color:var(--green);">R$ 2,91</div>
+          <div class="metric-sub">245 conversões</div>
+        </div>
+        <div class="metric-tile">
+          <div class="metric-label">CPA — Demand Gen</div>
+          <div class="metric-value" style="color:var(--amber);">R$ 2,28</div>
+          <div class="metric-sub">Verificar qualidade</div>
+        </div>
+        <div class="metric-tile">
+          <div class="metric-label">Freq. máx. remarketing</div>
+          <div class="metric-value" style="color:var(--red);">48x</div>
+          <div class="metric-sub">Meta — público saturado</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── 2. PROBLEMAS CRÍTICOS ─────────────────── -->
+    <section class="section" id="problemas">
+      <div class="section-header">
+        <span class="section-num">02</span>
+        <span class="section-title">Problemas críticos identificados</span>
+        <span class="section-tag">Diagnóstico</span>
+      </div>
+
+      <div class="alert alert-red">
+        <div class="alert-icon">!</div>
+        <div class="alert-body">
+          <div class="alert-title">Meta Ads: zero conversões rastreadas em toda a conta (R$ 12.822 sem atribuição)</div>
+          <div class="alert-desc">Nenhuma das 12 campanhas ativas no Meta registra uma única conversão no período. Isso indica que o pixel ou CAPI não está configurado para disparar eventos de conversão (Lead, Contact, Purchase), ou que todos os objetivos de campanha são de topo de funil (awareness, engajamento, vídeo) sem otimizar para ação real. Sem rastreamento, o algoritmo não tem sinal para otimizar e o time não tem dados para tomar decisão estratégica.</div>
+        </div>
+      </div>
+
+      <div class="alert alert-red">
+        <div class="alert-icon">!</div>
+        <div class="alert-body">
+          <div class="alert-title">Meta: frequência extrema nas campanhas de remarketing (até 48,3x)</div>
+          <div class="alert-desc">As campanhas "negociacao" e "trafego-perfil" apresentam frequência entre 38x e 48x, com CPM acima de R$ 200, impactando uma base de apenas 40–151 pessoas. Trata-se de público completamente saturado. Isso desperdiça orçamento, deteriora a percepção de marca e pode prejudicar ativamente o processo comercial com clientes em negociação. Estimativa de desperdício: R$ 828/mês.</div>
+        </div>
+      </div>
+
+      <div class="alert alert-red">
+        <div class="alert-icon">!</div>
+        <div class="alert-body">
+          <div class="alert-title">Google Ads: campanha "loja virtual" gasta R$ 1.124 com zero conversões</div>
+          <div class="alert-desc">A campanha <code style="font-family:var(--font-mono); font-size:11px; background:rgba(255,255,255,0.06); padding:1px 5px; border-radius:3px;">ckt_pesq_lojavirtual_maxvalor</code> opera com estratégia "Maximizar valor de conversão" mas não registrou nenhuma conversão em 305 cliques e R$ 1.124 investidos. O CPC de R$ 3,69 é 74% maior que a campanha principal (R$ 2,12). O algoritmo não tem dados de treino suficientes e está desperdiçando budget. Ação imediata: pausar e revisar configuração de conversão.</div>
+        </div>
+      </div>
+
+      <div class="alert alert-amber">
+        <div class="alert-icon">~</div>
+        <div class="alert-body">
+          <div class="alert-title">Google Ads: 50+ campanhas inativas acumuladas de múltiplas agências</div>
+          <div class="alert-desc">A conta contém campanhas pausadas de pelo menos 5 gestões diferentes: Webeing, BB, REC, WE Trends, Arena Corinthians, além de campanhas sem nomenclatura padronizada. Isso fragmenta o histórico, dificulta análise, aumenta o risco de reativações acidentais e pode confundir os sinais de aprendizado do algoritmo quando campanhas similares são criadas.</div>
+        </div>
+      </div>
+
+      <div class="alert alert-amber">
+        <div class="alert-icon">~</div>
+        <div class="alert-body">
+          <div class="alert-title">Meta: estrutura focada em awareness sem funil de conversão ativo</div>
+          <div class="alert-desc">O budget Meta está distribuído principalmente em campanhas de engajamento (R$ 6.178), vídeo view (R$ 2.570) e visita ao perfil (R$ 1.454). Apenas a campanha "leads-b2c" tem objetivo declarado de conversão — mas sem dados de atribuição confirmados. Um negócio B2B como a Concreserv precisa urgentemente de uma campanha de fundo de funil com objetivo "Leads" ou "Mensagens" integrado ao WhatsApp.</div>
+        </div>
+      </div>
+
+      <div class="alert alert-green" style="margin-top:8px;">
+        <div class="alert-icon">+</div>
+        <div class="alert-body">
+          <div class="alert-title">O que está funcionando: criativos em carrossel no Meta têm CTR 10–30x maior</div>
+          <div class="alert-desc">Anúncios em carrossel como "toda-obra", "liderança" e "grandes-obras" apresentam CTR entre 8% e 19%, enquanto os vídeos entregam apenas 0,5%–1,3%. Essa diferença de performance indica que o público responde muito melhor a conteúdo informativo, comparativo e educativo. O formato carrossel deve ser priorizado na estratégia de criativos.</div>
+        </div>
+      </div>
+
+      <div class="alert alert-green">
+        <div class="alert-icon">+</div>
+        <div class="alert-body">
+          <div class="alert-title">Google Search (principal): CPA eficiente, volume sólido, campanha estável</div>
+          <div class="alert-desc">A campanha <code style="font-family:var(--font-mono); font-size:11px; background:rgba(255,255,255,0.06); padding:1px 5px; border-radius:3px;">ckt_pesq_principal_concretousinado_maxconv</code> entregou 771 conversões a R$ 6,32 CPA com CTR de 8,1% em 28k impressões. É a espinha dorsal da geração de demanda e tem margem para escala.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── 3. META ADS ─────────────────────────── -->
+    <section class="section" id="meta">
+      <div class="section-header">
+        <span class="section-num">03</span>
+        <span class="section-title">Meta Ads — diagnóstico detalhado</span>
+        <span class="section-tag">Facebook · Instagram</span>
+      </div>
+
+      <!-- Investimento por campanha -->
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-inner" style="padding-bottom:12px;">
+          <div style="font-size:11px; font-family:var(--font-mono); color:var(--text-3); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:16px;">Investimento por campanha — últimos 30 dias</div>
+          <div class="chart-wrap" style="height:220px;">
+            <canvas id="metaSpend" role="img" aria-label="Gráfico de barras mostrando investimento por campanha Meta Ads"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabela de campanhas -->
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-inner">
+          <div style="font-size:11px; font-family:var(--font-mono); color:var(--text-3); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:14px;">Performance por campanha</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Campanha</th>
+                <th>Investimento</th>
+                <th>Impressões</th>
+                <th>CTR</th>
+                <th>CPM</th>
+                <th>Frequência</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><div class="td-name">ckt_engajamento_aon</div><div class="td-sub">Engajamento · interesses + lal + empregadores</div></td>
+                <td class="td-mono">R$ 6.178</td>
+                <td class="td-mono">1.124.839</td>
+                <td class="td-mono">1,74%</td>
+                <td class="td-mono">R$ 5,49</td>
+                <td class="td-mono" style="color:var(--amber);">1,82x</td>
+                <td><span class="badge badge-amber">Otimizar</span></td>
+              </tr>
+              <tr>
+                <td><div class="td-name">ckt_leads-b2c_potenciais-clientes_aon</div><div class="td-sub">Leads · interesses · fundo de funil</div></td>
+                <td class="td-mono">R$ 4.412</td>
+                <td class="td-mono">318.457</td>
+                <td class="td-mono">1,43%</td>
+                <td class="td-mono">R$ 13,85</td>
+                <td class="td-mono" style="color:var(--green);">1,56x</td>
+                <td><span class="badge badge-blue">Monitorar</span></td>
+              </tr>
+              <tr>
+                <td><div class="td-name">ckt_video-view_potenciais-clientes_aon</div><div class="td-sub">Vídeo View · interesses · topo</div></td>
+                <td class="td-mono">R$ 2.570</td>
+                <td class="td-mono">744.749</td>
+                <td class="td-mono">0,65%</td>
+                <td class="td-mono">R$ 3,45</td>
+                <td class="td-mono" style="color:var(--green);">1,32x</td>
+                <td><span class="badge badge-green">Saudável</span></td>
+              </tr>
+              <tr>
+                <td><div class="td-name">ckt_visita-ao-perfil_potenciais-clientes_aon</div><div class="td-sub">Visita ao Perfil · interesses + lal</div></td>
+                <td class="td-mono">R$ 1.454</td>
+                <td class="td-mono">270.219</td>
+                <td class="td-mono">2,96%</td>
+                <td class="td-mono">R$ 5,38</td>
+                <td class="td-mono" style="color:var(--green);">1,40x</td>
+                <td><span class="badge badge-green">Saudável</span></td>
+              </tr>
+              <tr>
+                <td><div class="td-name">ckt_video-view_reativacao-seguidores_aon</div><div class="td-sub">Vídeo View · rmk-seguidores</div></td>
+                <td class="td-mono">R$ 594</td>
+                <td class="td-mono">70.973</td>
+                <td class="td-mono">1,05%</td>
+                <td class="td-mono">R$ 8,37</td>
+                <td class="td-mono" style="color:var(--red);">12,9x</td>
+                <td><span class="badge badge-red">Pausar</span></td>
+              </tr>
+              <tr>
+                <td><div class="td-name">ckt_trafego-perfil_negociacao_aon</div><div class="td-sub">Tráfego Perfil · rmk-clientes-negociação</div></td>
+                <td class="td-mono">R$ 498</td>
+                <td class="td-mono">7.288</td>
+                <td class="td-mono">0,59%</td>
+                <td class="td-mono">R$ 68,38</td>
+                <td class="td-mono" style="color:var(--red);">48,3x</td>
+                <td><span class="badge badge-red">Pausar</span></td>
+              </tr>
+              <tr>
+                <td><div class="td-name">ckt_video-view_negociacao_aon</div><div class="td-sub">Vídeo View · rmk-clientes-negociação</div></td>
+                <td class="td-mono">R$ 330</td>
+                <td class="td-mono">1.615</td>
+                <td class="td-mono">0,06%</td>
+                <td class="td-mono">R$ 204,29</td>
+                <td class="td-mono" style="color:var(--red);">38,5x</td>
+                <td><span class="badge badge-red">Pausar</span></td>
+              </tr>
+              <tr>
+                <td><div class="td-name">ckt_alcance_negociacao-clientes_aon</div><div class="td-sub">Alcance · rmkt-clientes</div></td>
+                <td class="td-mono">R$ 289</td>
+                <td class="td-mono">4.298</td>
+                <td class="td-mono">0,77%</td>
+                <td class="td-mono">R$ 67,25</td>
+                <td class="td-mono" style="color:var(--amber);">6,3x</td>
+                <td><span class="badge badge-amber">Atenção</span></td>
+              </tr>
+              <tr>
+                <td><div class="td-name">ckt_visita-ao-perfil_potenciais-clientes_rmkt_aon</div><div class="td-sub">Visita ao Perfil · rmkt-eng-naoseguidor</div></td>
+                <td class="td-mono">R$ 409</td>
+                <td class="td-mono">30.634</td>
+                <td class="td-mono">3,37%</td>
+                <td class="td-mono">R$ 13,35</td>
+                <td class="td-mono" style="color:var(--green);">2,68x</td>
+                <td><span class="badge badge-green">OK</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Frequência -->
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-inner">
+          <div style="font-size:11px; font-family:var(--font-mono); color:var(--text-3); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:16px;">Mapa de saturação — frequência por campanha</div>
+          <div style="display:grid; grid-template-columns: 1fr 56px 200px 80px; gap:8px; font-size:9px; font-family:var(--font-mono); color:var(--text-3); text-transform:uppercase; letter-spacing:0.08em; padding-bottom:8px; border-bottom:1px solid var(--border);">
+            <div>Campanha</div><div>Freq.</div><div>Saturação</div><div>Ação</div>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 56px 200px 80px; gap:8px; align-items:center; padding:10px 0; border-bottom:1px solid var(--border);">
+            <div style="font-size:12px; color:var(--text);">trafego-perfil_negociacao</div>
+            <div style="font-family:var(--font-mono); font-size:12px; color:var(--red);">48,3x</div>
+            <div><div class="freq-bar-wrap"><div class="freq-bar-fill" style="width:100%; background:var(--red);"></div></div></div>
+            <div><span class="badge badge-red">Pausar</span></div>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 56px 200px 80px; gap:8px; align-items:center; padding:10px 0; border-bottom:1px solid var(--border);">
+            <div style="font-size:12px; color:var(--text);">video-view_negociacao</div>
+            <div style="font-family:var(--font-mono); font-size:12px; color:var(--red);">38,5x</div>
+            <div><div class="freq-bar-wrap"><div class="freq-bar-fill" style="width:80%; background:var(--red);"></div></div></div>
+            <div><span class="badge badge-red">Pausar</span></div>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 56px 200px 80px; gap:8px; align-items:center; padding:10px 0; border-bottom:1px solid var(--border);">
+            <div style="font-size:12px; color:var(--text);">reativacao-seguidores</div>
+            <div style="font-family:var(--font-mono); font-size:12px; color:var(--red);">12,9x</div>
+            <div><div class="freq-bar-wrap"><div class="freq-bar-fill" style="width:27%; background:var(--red);"></div></div></div>
+            <div><span class="badge badge-red">Pausar</span></div>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 56px 200px 80px; gap:8px; align-items:center; padding:10px 0; border-bottom:1px solid var(--border);">
+            <div style="font-size:12px; color:var(--text);">alcance_negociacao</div>
+            <div style="font-family:var(--font-mono); font-size:12px; color:var(--amber);">6,3x</div>
+            <div><div class="freq-bar-wrap"><div class="freq-bar-fill" style="width:13%; background:var(--amber);"></div></div></div>
+            <div><span class="badge badge-amber">Cap 3x</span></div>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 56px 200px 80px; gap:8px; align-items:center; padding:10px 0; border-bottom:1px solid var(--border);">
+            <div style="font-size:12px; color:var(--text);">rmkt-eng-naoseguidor</div>
+            <div style="font-family:var(--font-mono); font-size:12px; color:var(--amber);">2,7x</div>
+            <div><div class="freq-bar-wrap"><div class="freq-bar-fill" style="width:6%; background:var(--blue);"></div></div></div>
+            <div><span class="badge badge-gray">OK</span></div>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 56px 200px 80px; gap:8px; align-items:center; padding:10px 0;">
+            <div style="font-size:12px; color:var(--text);">potenciais-clientes (frio)</div>
+            <div style="font-family:var(--font-mono); font-size:12px; color:var(--green);">1,4x</div>
+            <div><div class="freq-bar-wrap"><div class="freq-bar-fill" style="width:3%; background:var(--green);"></div></div></div>
+            <div><span class="badge badge-green">Saudável</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CTR por formato -->
+      <div class="metrics-grid metrics-3" style="margin-bottom:16px;">
+        <div class="metric-tile">
+          <div class="metric-label">Carrossel — melhor formato</div>
+          <div class="metric-value" style="color:var(--green);">8–19%</div>
+          <div class="metric-sub">CTR médio nos carrosséis ativos</div>
+        </div>
+        <div class="metric-tile">
+          <div class="metric-label">Vídeo — topo de funil</div>
+          <div class="metric-value" style="color:var(--text-2);">0,5–1,3%</div>
+          <div class="metric-sub">CTR médio campanhas de vídeo</div>
+        </div>
+        <div class="metric-tile">
+          <div class="metric-label">Estática / imagem</div>
+          <div class="metric-value" style="color:var(--amber);">0,9–2,6%</div>
+          <div class="metric-sub">CTR variável por criativo</div>
+        </div>
+      </div>
+
+      <!-- Rastreamento -->
+      <div class="card" style="margin-bottom:16px; border-color:rgba(239,68,68,0.3);">
+        <div class="card-inner">
+          <div style="font-size:11px; font-family:var(--font-mono); color:var(--red); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:14px;">Rastreamento — status crítico</div>
+          <table>
+            <thead><tr><th>Componente</th><th>Status</th><th>Impacto</th></tr></thead>
+            <tbody>
+              <tr><td class="td-name">Meta Pixel</td><td><span class="badge badge-red">Não confirmado</span></td><td style="font-size:12px; color:var(--text-2);">Sem pixel ativo, algoritmo não otimiza para conversão</td></tr>
+              <tr><td class="td-name">Conversions API (CAPI)</td><td><span class="badge badge-red">Status desconhecido</span></td><td style="font-size:12px; color:var(--text-2);">Perda de sinal pós-iOS 14 sem CAPI</td></tr>
+              <tr><td class="td-name">Eventos de conversão (Lead/Contact)</td><td><span class="badge badge-red">0 disparos</span></td><td style="font-size:12px; color:var(--text-2);">Sem dados de treino para otimização</td></tr>
+              <tr><td class="td-name">Objetivos das campanhas ativas</td><td><span class="badge badge-amber">Engajamento / Vídeo</span></td><td style="font-size:12px; color:var(--text-2);">Nenhuma campanha otimizando para lead/contato</td></tr>
+              <tr><td class="td-name">EMQ Score (Event Match Quality)</td><td><span class="badge badge-gray">Não disponível</span></td><td style="font-size:12px; color:var(--text-2);">Necessário ≥ 6 para boa atribuição</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Funil sugerido -->
+      <div class="card">
+        <div class="card-inner">
+          <div style="font-size:11px; font-family:var(--font-mono); color:var(--text-3); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:16px;">Estrutura de funil recomendada para Meta Ads</div>
+          <div class="funnel-grid">
+            <div class="funnel-stage funnel-top">
+              <div class="funnel-label" style="color:#3b82f6;">Topo — Awareness</div>
+              <div class="funnel-heading">Geração de audiência qualificada</div>
+              <div class="funnel-items">
+                · Campanhas de Vídeo View<br>
+                · Público: interesses + LAL seed<br>
+                · Objetivo: ThruPlay / 75% views<br>
+                · Criativos: vídeos institucionais<br>
+                · Segmentação por região
+              </div>
+              <div class="funnel-budget" style="color:#3b82f6;">Budget sugerido: 30–35%</div>
+            </div>
+            <div class="funnel-stage funnel-mid">
+              <div class="funnel-label" style="color:var(--amber);">Meio — Consideração</div>
+              <div class="funnel-heading">Nutrição e intenção de compra</div>
+              <div class="funnel-items">
+                · Engajamento + Tráfego para LP<br>
+                · Público: quem assistiu vídeo ≥75%<br>
+                · Objetivo: engajamento / link<br>
+                · Criativos: carrosséis (formato vencedor)<br>
+                · Exclusão: base de clientes
+              </div>
+              <div class="funnel-budget" style="color:var(--amber);">Budget sugerido: 25–30%</div>
+            </div>
+            <div class="funnel-stage funnel-bot">
+              <div class="funnel-label" style="color:var(--green);">Fundo — Conversão</div>
+              <div class="funnel-heading">Captação de leads e contatos</div>
+              <div class="funnel-items">
+                · Geração de Leads (formulário IG)<br>
+                · Mensagens (WhatsApp Business)<br>
+                · Público: engajadores + visitantes LP<br>
+                · Objetivo: Lead / Mensagens<br>
+                · Criativos: oferta direta, prova social
+              </div>
+              <div class="funnel-budget" style="color:var(--green);">Budget sugerido: 35–40% — PRIORIDADE</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── 4. GOOGLE ADS ─────────────────────────── -->
+    <section class="section" id="google">
+      <div class="section-header">
+        <span class="section-num">04</span>
+        <span class="section-title">Google Ads — diagnóstico detalhado</span>
+        <span class="section-tag">Search · Demand Gen</span>
+      </div>
+
+      <!-- Distribuição de investimento -->
+      <div class="metrics-grid metrics-2" style="margin-bottom:16px;">
+        <div class="card">
+          <div class="card-inner" style="padding-bottom:12px;">
+            <div style="font-size:11px; font-family:var(--font-mono); color:var(--text-3); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:14px;">Distribuição de investimento</div>
+            <div class="chart-wrap" style="height:200px;">
+              <canvas id="googleDist" role="img" aria-label="Gráfico pizza distribuição Google Ads"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-inner">
+            <div style="font-size:11px; font-family:var(--font-mono); color:var(--text-3); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:14px;">CPA por campanha ativa</div>
+            <div class="chart-wrap" style="height:200px;">
+              <canvas id="googleCPA" role="img" aria-label="Gráfico de CPA por campanha Google Ads"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabela Google -->
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-inner">
+          <div style="font-size:11px; font-family:var(--font-mono); color:var(--text-3); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:14px;">Campanhas ativas — performance completa</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Campanha</th>
+                <th>Investimento</th>
+                <th>Cliques</th>
+                <th>CTR</th>
+                <th>CPC</th>
+                <th>Conversões</th>
+                <th>CPA</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <div class="td-name">ckt_pesq_principal_concretousinado_maxconv</div>
+                  <div class="td-sub">Search · Max Conversões · concreto usinado</div>
+                </td>
+                <td class="td-mono">R$ 4.873</td>
+                <td class="td-mono">2.299</td>
+                <td class="td-mono" style="color:var(--green);">8,15%</td>
+                <td class="td-mono">R$ 2,12</td>
+                <td class="td-mono">771</td>
+                <td class="td-mono" style="color:var(--green); font-weight:500;">R$ 6,32</td>
+                <td><span class="badge badge-green">Saudável</span></td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="td-name">[LEAD] Demand Gen · Concreto · Principais Regiões</div>
+                  <div class="td-sub">Demand Gen · Max Conversões</div>
+                </td>
+                <td class="td-mono">R$ 3.337</td>
+                <td class="td-mono">35.679</td>
+                <td class="td-mono" style="color:var(--green);">4,88%</td>
+                <td class="td-mono">R$ 0,09</td>
+                <td class="td-mono">1.464</td>
+                <td class="td-mono" style="color:var(--amber); font-weight:500;">R$ 2,28</td>
+                <td><span class="badge badge-amber">Verificar</span></td>
+              </tr>
+              <tr style="background:rgba(239,68,68,0.04);">
+                <td>
+                  <div class="td-name">ckt_pesq_lojavirtual_maxvalor</div>
+                  <div class="td-sub">Search · Max Valor Conv. · sem conversão</div>
+                </td>
+                <td class="td-mono" style="color:var(--red);">R$ 1.124</td>
+                <td class="td-mono">305</td>
+                <td class="td-mono">8,19%</td>
+                <td class="td-mono" style="color:var(--red);">R$ 3,69</td>
+                <td class="td-mono" style="color:var(--red); font-weight:500;">0</td>
+                <td class="td-mono" style="color:var(--red);">—</td>
+                <td><span class="badge badge-red">Pausar já</span></td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="td-name">ckt_pesq_institucional_maxconv</div>
+                  <div class="td-sub">Search · Max Conversões · marca/institucional</div>
+                </td>
+                <td class="td-mono">R$ 712</td>
+                <td class="td-mono">780</td>
+                <td class="td-mono" style="color:var(--green);">25,13%</td>
+                <td class="td-mono">R$ 0,91</td>
+                <td class="td-mono">245</td>
+                <td class="td-mono" style="color:var(--green); font-weight:500;">R$ 2,91</td>
+                <td><span class="badge badge-blue">Escalar</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Problemas estruturais -->
+      <div class="card">
+        <div class="card-inner">
+          <div style="font-size:11px; font-family:var(--font-mono); color:var(--text-3); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:14px;">Problemas estruturais da conta</div>
+          <div class="alert alert-red" style="margin-bottom:8px;">
+            <div class="alert-icon">!</div>
+            <div class="alert-body">
+              <div class="alert-title">Conta acumula 50+ campanhas inativas de múltiplas agências</div>
+              <div class="alert-desc">Campanhas de Webeing, BB, REC, WE Trends, Arena Corinthians, Leilão de Frota, entre outras, estão pausadas sem organização. Isso aumenta o risco de reativações acidentais, fragmenta o histórico de aprendizado e torna a conta difícil de auditar e gerenciar.</div>
+            </div>
+          </div>
+          <div class="alert alert-amber" style="margin-bottom:8px;">
+            <div class="alert-icon">~</div>
+            <div class="alert-body">
+              <div class="alert-title">Demand Gen: qualidade das conversões precisa ser verificada</div>
+              <div class="alert-desc">CPC de R$ 0,09 e 35.679 cliques é incomum para um segmento B2B. 1.464 conversões a R$ 2,28 pode indicar microconversões (scrolls, visualizações de página) contabilizadas como leads reais. É essencial conferir no Google Ads quais ações estão sendo contabilizadas como conversão para esta campanha.</div>
+            </div>
+          </div>
+          <div class="alert alert-amber">
+            <div class="alert-icon">~</div>
+            <div class="alert-body">
+              <div class="alert-title">Campanha institucional com CTR 25% — verificar se está capturando marca</div>
+              <div class="alert-desc">CTR de 25% é típico de pesquisas branded ("Concreserv", "concreto Concreserv"). Se confirmado, a campanha pode estar pagando por tráfego que viria organicamente, ou canibalizando resultados orgânicos de marca. Recomenda-se revisar os termos de pesquisa e verificar se há controle de negativos entre as campanhas.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── 5. PLANO DE AÇÃO ──────────────────────── -->
+    <section class="section" id="acoes">
+      <div class="section-header">
+        <span class="section-num">05</span>
+        <span class="section-title">Plano de ação priorizado</span>
+        <span class="section-tag">Roadmap</span>
+      </div>
+
+      <!-- Alta prioridade -->
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-inner">
+          <div style="font-size:11px; font-family:var(--font-mono); color:var(--red); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:16px;">Alta prioridade — imediato a 2 semanas</div>
+          <div class="col-header">
+            <div></div><div>Ação</div><div style="text-align:right;">Canal</div><div style="text-align:right;">Impacto</div><div style="text-align:right;">Prazo</div>
+          </div>
+          <div class="action-item">
+            <div class="action-num num-alta">1</div>
+            <div>
+              <div class="action-title">Auditar e corrigir rastreamento Meta Ads (pixel + CAPI)</div>
+              <div class="action-detail">Abrir Gerenciador de Eventos: confirmar pixel instalado, verificar eventos Lead/Contact disparando, checar EMQ ≥ 6. Implementar CAPI se ausente. Sem isso, impossível tomar qualquer decisão estratégica no Meta.</div>
+            </div>
+            <div style="text-align:right;"><span class="badge badge-blue">Meta</span></div>
+            <div style="text-align:right;"><span class="badge badge-red">Crítico</span></div>
+            <div style="text-align:right; font-size:11px; color:var(--text-2);">Esta semana</div>
+          </div>
+          <div class="action-item">
+            <div class="action-num num-alta">2</div>
+            <div>
+              <div class="action-title">Pausar campanha "loja virtual" Google — R$ 1.124 em desperdício</div>
+              <div class="action-detail">Pausar imediatamente ckt_pesq_lojavirtual_maxvalor. Redirecionar budget para campanha institucional (CPA R$ 2,91). Revisar configuração de conversão antes de reativar com estratégia de lance diferente.</div>
+            </div>
+            <div style="text-align:right;"><span class="badge badge-green">Google</span></div>
+            <div style="text-align:right;"><span class="badge badge-red">Crítico</span></div>
+            <div style="text-align:right; font-size:11px; color:var(--text-2);">Hoje</div>
+          </div>
+          <div class="action-item">
+            <div class="action-num num-alta">3</div>
+            <div>
+              <div class="action-title">Pausar campanhas Meta com frequência > 10x</div>
+              <div class="action-detail">Pausar: trafego-perfil_negociacao (48x), video-view_negociacao (38x), reativacao-seguidores (12x). Adicionar frequency cap de máx. 3x por 7 dias nas demais campanhas de remarketing. Salva R$ 828+ por mês.</div>
+            </div>
+            <div style="text-align:right;"><span class="badge badge-blue">Meta</span></div>
+            <div style="text-align:right;"><span class="badge badge-red">Alto</span></div>
+            <div style="text-align:right; font-size:11px; color:var(--text-2);">Esta semana</div>
+          </div>
+          <div class="action-item">
+            <div class="action-num num-alta">4</div>
+            <div>
+              <div class="action-title">Verificar tipo de conversão da campanha Demand Gen</div>
+              <div class="action-detail">Acessar configurações de conversão da campanha no Google Ads. Confirmar se 1.464 conversões representam leads reais (formulário, ligação, WhatsApp) ou microconversões. Esta análise define se o budget de R$ 3.337 está bem alocado.</div>
+            </div>
+            <div style="text-align:right;"><span class="badge badge-green">Google</span></div>
+            <div style="text-align:right;"><span class="badge badge-red">Alto</span></div>
+            <div style="text-align:right; font-size:11px; color:var(--text-2);">Esta semana</div>
+          </div>
+          <div class="action-item">
+            <div class="action-num num-alta">5</div>
+            <div>
+              <div class="action-title">Criar campanha de leads (fundo de funil) no Meta com carrossel</div>
+              <div class="action-detail">Criar campanha com objetivo "Geração de Leads" ou "Mensagens" (WhatsApp). Público: remarketing de engajadores + lookalike de clientes. Criativo: carrosséis baseados nos melhores performers (CTR 8–19%). Esta é a peça que falta no funil Meta.</div>
+            </div>
+            <div style="text-align:right;"><span class="badge badge-blue">Meta</span></div>
+            <div style="text-align:right;"><span class="badge badge-red">Alto</span></div>
+            <div style="text-align:right; font-size:11px; color:var(--text-2);">1–2 semanas</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Média prioridade -->
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-inner">
+          <div style="font-size:11px; font-family:var(--font-mono); color:var(--amber); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:16px;">Média prioridade — 2 a 6 semanas</div>
+          <div class="action-item">
+            <div class="action-num num-media">6</div>
+            <div>
+              <div class="action-title">Escalar campanha institucional Google +30–50%</div>
+              <div class="action-detail">CPA R$ 2,91 e CTR 25% indicam oportunidade clara. Aumentar budget gradualmente (10–20% por semana) e monitorar CPA. Se mantiver eficiência, continuar escalando.</div>
+            </div>
+            <div style="text-align:right;"><span class="badge badge-green">Google</span></div>
+            <div style="text-align:right;"><span class="badge badge-amber">Médio</span></div>
+            <div style="text-align:right; font-size:11px; color:var(--text-2);">2–3 semanas</div>
+          </div>
+          <div class="action-item">
+            <div class="action-num num-media">7</div>
+            <div>
+              <div class="action-title">Reestruturar Meta por funil (topo/meio/fundo)</div>
+              <div class="action-detail">Implementar arquitetura de funil completa: topo (vídeo view · públicos frios), meio (carrossel · quem assistiu vídeo), fundo (leads/WhatsApp · remarketing quente). Definir orçamento por etapa.</div>
+            </div>
+            <div style="text-align:right;"><span class="badge badge-blue">Meta</span></div>
+            <div style="text-align:right;"><span class="badge badge-amber">Médio</span></div>
+            <div style="text-align:right; font-size:11px; color:var(--text-2);">3–4 semanas</div>
+          </div>
+          <div class="action-item">
+            <div class="action-num num-media">8</div>
+            <div>
+              <div class="action-title">Expandir criativos em carrossel (formato vencedor)</div>
+              <div class="action-detail">Criar 3–5 novos carrosséis baseados nos melhores performers: "toda-obra", "liderança", "grandes-obras". Testar variações de headline, copy e imagens. Ciclos de 2 semanas por teste.</div>
+            </div>
+            <div style="text-align:right;"><span class="badge badge-blue">Meta</span></div>
+            <div style="text-align:right;"><span class="badge badge-amber">Médio</span></div>
+            <div style="text-align:right; font-size:11px; color:var(--text-2);">2–4 semanas</div>
+          </div>
+          <div class="action-item">
+            <div class="action-num num-media">9</div>
+            <div>
+              <div class="action-title">Limpar conta Google: arquivar campanhas inativas de gestões anteriores</div>
+              <div class="action-detail">Mover para estado "removido" ou organizar em pastas as campanhas Webeing, BB, REC, WE Trends, Arena Corinthians, etc. Padronizar nomenclatura das campanhas ativas com prefixo "ckt_".</div>
+            </div>
+            <div style="text-align:right;"><span class="badge badge-green">Google</span></div>
+            <div style="text-align:right;"><span class="badge badge-amber">Médio</span></div>
+            <div style="text-align:right; font-size:11px; color:var(--text-2);">2–3 semanas</div>
+          </div>
+          <div class="action-item">
+            <div class="action-num num-media">10</div>
+            <div>
+              <div class="action-title">Adicionar exclusões cruzadas entre adsets Meta</div>
+              <div class="action-detail">Públicos "interesses" e "lal-listas" provavelmente se sobrepõem dentro de ckt_engajamento. Configurar exclusões para evitar que o algoritmo compita consigo mesmo, reduzindo CPM e melhorando eficiência.</div>
+            </div>
+            <div style="text-align:right;"><span class="badge badge-blue">Meta</span></div>
+            <div style="text-align:right;"><span class="badge badge-amber">Médio</span></div>
+            <div style="text-align:right; font-size:11px; color:var(--text-2);">3–4 semanas</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Baixa prioridade -->
+      <div class="card">
+        <div class="card-inner">
+          <div style="font-size:11px; font-family:var(--font-mono); color:var(--green); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:16px;">Baixa prioridade — 6 a 12 semanas</div>
+          <div class="action-item">
+            <div class="action-num num-baixa">11</div>
+            <div>
+              <div class="action-title">Implementar testes A/B sistemáticos de criativos Meta</div>
+              <div class="action-detail">Estrutura de testes: 1 variável por teste, mínimo R$ 50/dia por variante, ciclos de 14 dias. Criar banco de dados de aprendizados de criativos.</div>
+            </div>
+            <div style="text-align:right;"><span class="badge badge-blue">Meta</span></div>
+            <div style="text-align:right;"><span class="badge badge-green">Baixo</span></div>
+            <div style="text-align:right; font-size:11px; color:var(--text-2);">6–8 semanas</div>
+          </div>
+          <div class="action-item">
+            <div class="action-num num-baixa">12</div>
+            <div>
+              <div class="action-title">Avaliar Performance Max no Google para ampliar cobertura</div>
+              <div class="action-detail">Após consolidar campanhas de busca e garantir rastreamento sólido, testar PMax com sinais de audiência fortes: lista de clientes + engajadores Meta.</div>
+            </div>
+            <div style="text-align:right;"><span class="badge badge-green">Google</span></div>
+            <div style="text-align:right;"><span class="badge badge-green">Baixo</span></div>
+            <div style="text-align:right; font-size:11px; color:var(--text-2);">8–10 semanas</div>
+          </div>
+          <div class="action-item">
+            <div class="action-num num-baixa">13</div>
+            <div>
+              <div class="action-title">Sincronizar lista de clientes com Meta e Google (CRM)</div>
+              <div class="action-detail">Carregar lista de clientes reais como Customer List. Usar como exclusão nas prospecções e como semente para lookalikes de alta qualidade. É o ativo mais valioso para escalar audiências.</div>
+            </div>
+            <div style="text-align:right;"><span class="badge badge-gray">Ambos</span></div>
+            <div style="text-align:right;"><span class="badge badge-green">Baixo</span></div>
+            <div style="text-align:right; font-size:11px; color:var(--text-2);">10–12 semanas</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── 6. PROJEÇÕES ──────────────────────────── -->
+    <section class="section" id="projecoes">
+      <div class="section-header">
+        <span class="section-num">06</span>
+        <span class="section-title">Projeções de resultado</span>
+        <span class="section-tag">Estimativas</span>
+      </div>
+
+      <div class="summary-box">
+        <p>As projeções abaixo são estimativas baseadas em benchmarks do setor B2B construção e nos dados coletados da conta. Os resultados reais dependem da qualidade da landing page, do processo de follow-up comercial e do nível de execução das otimizações. Após corrigir o rastreamento Meta, as métricas poderão ser recalibradas com dados reais.</p>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-inner">
+          <div style="font-size:11px; font-family:var(--font-mono); color:var(--text-3); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:4px;">Impacto financeiro — curto prazo (ações 1–5)</div>
+          <div class="proj-row proj-header">
+            <div>Item</div><div style="text-align:right;">Atual (30d)</div><div style="text-align:right;">Projetado</div><div style="text-align:right;">Variação</div>
+          </div>
+          <div class="proj-row">
+            <div class="proj-metric">Desperdício Meta (saturação)</div>
+            <div class="proj-current">R$ 828</div>
+            <div class="proj-target">R$ 0–100</div>
+            <div class="proj-delta" style="color:var(--green);">-87%</div>
+          </div>
+          <div class="proj-row">
+            <div class="proj-metric">Desperdício Google (loja virtual)</div>
+            <div class="proj-current">R$ 1.124</div>
+            <div class="proj-target">R$ 0</div>
+            <div class="proj-delta" style="color:var(--green);">-100%</div>
+          </div>
+          <div class="proj-row">
+            <div class="proj-metric">Budget liberado para realocar</div>
+            <div class="proj-current">—</div>
+            <div class="proj-target">R$ 1.952+</div>
+            <div class="proj-delta" style="color:var(--green);">+R$ 1.952</div>
+          </div>
+          <div class="proj-row">
+            <div class="proj-metric">Leads Meta mensais (pós-setup funil)</div>
+            <div class="proj-current">0</div>
+            <div class="proj-target">50–120</div>
+            <div class="proj-delta" style="color:var(--green);">+∞</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-inner">
+          <div style="font-size:11px; font-family:var(--font-mono); color:var(--text-3); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:4px;">Projeções de métricas — médio prazo (ações 1–10)</div>
+          <div class="proj-row proj-header">
+            <div>Métrica</div><div style="text-align:right;">Atual</div><div style="text-align:right;">Meta (60d)</div><div style="text-align:right;">Premissa</div>
+          </div>
+          <div class="proj-row">
+            <div class="proj-metric">Google Search CPA (principal)</div>
+            <div class="proj-current">R$ 6,32</div>
+            <div class="proj-target">R$ 5,50–6,00</div>
+            <div class="proj-delta" style="color:var(--amber);">Estável</div>
+          </div>
+          <div class="proj-row">
+            <div class="proj-metric">Google Institucional — budget</div>
+            <div class="proj-current">R$ 712/mês</div>
+            <div class="proj-target">R$ 1.000–1.100</div>
+            <div class="proj-delta" style="color:var(--green);">+40%</div>
+          </div>
+          <div class="proj-row">
+            <div class="proj-metric">Meta CTR (funil reestruturado)</div>
+            <div class="proj-current">1,74% avg</div>
+            <div class="proj-target">3,0–4,5%</div>
+            <div class="proj-delta" style="color:var(--green);">+100%+</div>
+          </div>
+          <div class="proj-row">
+            <div class="proj-metric">Meta CPL (campanha de leads)</div>
+            <div class="proj-current">N/D</div>
+            <div class="proj-target">R$ 40–120</div>
+            <div class="proj-delta" style="color:var(--blue);">Novo</div>
+          </div>
+          <div class="proj-row">
+            <div class="proj-metric">Conversões Google Search (total)</div>
+            <div class="proj-current">1.016/mês</div>
+            <div class="proj-target">1.200–1.400</div>
+            <div class="proj-delta" style="color:var(--green);">+20–38%</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── 7. PERGUNTAS ────────────────────────────── -->
+    <section class="section" id="perguntas">
+      <div class="section-header">
+        <span class="section-num">07</span>
+        <span class="section-title">Perguntas estratégicas para o time</span>
+        <span class="section-tag">Alinhamento</span>
+      </div>
+
+      <div class="card">
+        <div class="card-inner">
+          <div style="font-size:11px; font-family:var(--font-mono); color:var(--red); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:14px;">Rastreamento e atribuição</div>
+          <div class="question-item">
+            <div class="q-num">01 · URGENTE</div>
+            <div class="q-text">O pixel do Meta está configurado para disparar eventos de lead/conversão?</div>
+            <div class="q-context">Verificar no Events Manager: pixel instalado, EventMatch Quality, eventos de "Lead", "Contact" ou "Purchase" disparando corretamente. Sem isso, impossível otimizar para conversão no Meta e todo o investimento atual está sendo feito às cegas.</div>
+            <span class="q-tag"><span class="badge badge-red">Crítico</span></span>
+          </div>
+          <div class="question-item">
+            <div class="q-num">02 · URGENTE</div>
+            <div class="q-text">Qual é a definição exata de "conversão" para a campanha Demand Gen do Google?</div>
+            <div class="q-context">1.464 conversões a R$ 2,28 CPA precisa ser confirmado: são formulários preenchidos, cliques em WhatsApp, ligações ou microconversões de engajamento (scroll, tempo no site)? Esta resposta define se R$ 3.337/mês está bem ou mal alocado.</div>
+            <span class="q-tag"><span class="badge badge-red">Crítico</span></span>
+          </div>
+          <div class="question-item">
+            <div class="q-num">03</div>
+            <div class="q-text">A campanha "institucional" Google está capturando predominantemente termos de marca?</div>
+            <div class="q-context">CTR de 25% é muito típico de pesquisas branded ("Concreserv", "concreto Concreserv"). Se sim, o investimento pode estar canibalizando tráfego orgânico de marca sem gerar incremento real de negócio.</div>
+            <span class="q-tag"><span class="badge badge-amber">Importante</span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px;">
+        <div class="card-inner">
+          <div style="font-size:11px; font-family:var(--font-mono); color:var(--amber); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:14px;">Estratégia e objetivos</div>
+          <div class="question-item">
+            <div class="q-num">04</div>
+            <div class="q-text">Qual é o objetivo principal das campanhas Meta neste momento — branding ou leads?</div>
+            <div class="q-context">A estrutura atual é quase toda de awareness/engajamento. Se o objetivo é gerar leads qualificados, a estrutura precisa mudar radicalmente. Se é branding/autoridade de marca, faz mais sentido — mas o rastreamento ainda precisa melhorar para medir o real impacto.</div>
+            <span class="q-tag"><span class="badge badge-amber">Estratégico</span></span>
+          </div>
+          <div class="question-item">
+            <div class="q-num">05</div>
+            <div class="q-text">As campanhas de "negociação" (remarketing com frequência extrema) estão conectadas a um processo comercial?</div>
+            <div class="q-context">Campanhas com frequência 38–48x para 40–150 pessoas sugere uma lista de leads em negociação. Qual é o processo de follow-up comercial além do tráfego pago? Há integração com CRM? O time comercial sabe que essas pessoas estão sendo bombardeadas com anúncios?</div>
+            <span class="q-tag"><span class="badge badge-amber">Estratégico</span></span>
+          </div>
+          <div class="question-item">
+            <div class="q-num">06</div>
+            <div class="q-text">Qual é a meta de CPA ou CPL definida pelo cliente?</div>
+            <div class="q-context">Sem um benchmark de CPA aceitável definido pelo cliente, não é possível avaliar com precisão se R$ 6,32 na campanha principal é bom ou ruim para o modelo de negócio da Concreserv (ticket médio, ciclo de vendas, margem).</div>
+            <span class="q-tag"><span class="badge badge-amber">Estratégico</span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px;">
+        <div class="card-inner">
+          <div style="font-size:11px; font-family:var(--font-mono); color:var(--green); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:14px;">Escala e infraestrutura</div>
+          <div class="question-item">
+            <div class="q-num">07</div>
+            <div class="q-text">Há landing pages dedicadas para campanhas de conversão no Meta?</div>
+            <div class="q-context">Para campanhas de fundo de funil eficientes, é necessário LP com pixel instalado, formulário de contato claro ou botão de WhatsApp. Qual é a infraestrutura atual de captura fora do perfil do Instagram?</div>
+            <span class="q-tag"><span class="badge badge-green">Infraestrutura</span></span>
+          </div>
+          <div class="question-item">
+            <div class="q-num">08</div>
+            <div class="q-text">O cliente tem uma lista de clientes (CRM) para uso como semente de lookalike?</div>
+            <div class="q-context">Uma lista de clientes reais carregada no Meta é o ativo mais valioso para criar lookalikes de alta qualidade. Sem isso, as audiências LAL dependem apenas de engajamento — sinal muito mais fraco. Google também permite customer match com lista de e-mails.</div>
+            <span class="q-tag"><span class="badge badge-green">Infraestrutura</span></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div style="padding: 32px 0 16px; border-top: 1px solid var(--border); margin-top: 16px;">
+      <div style="font-size:11px; color:var(--text-3); font-family:var(--font-mono);">Diagnóstico gerado via Windsor.ai · Concreserv · Período: últimos 30 dias · 29/04/2026</div>
+    </div>
+
+  </div><!-- /content -->
+</main>
+</div><!-- /shell -->
+
+<script>
+// Active nav on scroll
+const sections = document.querySelectorAll('section[id]');
+const navItems = document.querySelectorAll('.nav-item');
+window.addEventListener('scroll', () => {
+  let current = '';
+  sections.forEach(s => { if (window.scrollY >= s.offsetTop - 80) current = s.id; });
+  navItems.forEach(a => {
+    a.classList.remove('active');
+    if (a.getAttribute('href') === '#' + current) a.classList.add('active');
+  });
+});
+
+// Meta Spend Chart
+const metaCtx = document.getElementById('metaSpend').getContext('2d');
+new Chart(metaCtx, {
+  type: 'bar',
+  data: {
+    labels: ['Engajamento','Leads B2C','Video View','Traf. Perfil','Reat. Seg.','Negociação','Alc. Neg.','RMKT Perfil','BB camps'],
+    datasets: [{
+      label: 'Investimento R$',
+      data: [6178, 4412, 2570, 1454, 594, 498, 289, 409, 87],
+      backgroundColor: ['#f59e0b','#f59e0b','#3b82f6','#3b82f6','#ef4444','#ef4444','#ef4444','#3b82f6','#6b7280'],
+      borderRadius: 4,
+      borderSkipped: false
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: '#8a9199', font: { size: 10, family: 'DM Mono' }, maxRotation: 30 }, grid: { display: false }, border: { display: false } },
+      y: { ticks: { color: '#8a9199', font: { size: 10, family: 'DM Mono' }, callback: v => 'R$' + v.toLocaleString('pt-BR') }, grid: { color: 'rgba(255,255,255,0.05)' }, border: { display: false } }
+    }
+  }
+});
+
+// Google Distribution
+const gDistCtx = document.getElementById('googleDist').getContext('2d');
+new Chart(gDistCtx, {
+  type: 'doughnut',
+  data: {
+    labels: ['Search Principal','Demand Gen','Loja Virtual (sem conv.)','Institucional'],
+    datasets: [{
+      data: [4873, 3337, 1124, 712],
+      backgroundColor: ['#22c55e', '#3b82f6', '#ef4444', '#06b6d4'],
+      borderWidth: 0,
+      hoverOffset: 4
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: '62%',
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { color: '#8a9199', font: { size: 10, family: 'DM Mono' }, boxWidth: 10, padding: 10 }
+      }
+    }
+  }
+});
+
+// Google CPA
+const gCpaCtx = document.getElementById('googleCPA').getContext('2d');
+new Chart(gCpaCtx, {
+  type: 'bar',
+  data: {
+    labels: ['Demand Gen','Institucional','Search Principal','Loja Virtual'],
+    datasets: [{
+      label: 'CPA R$',
+      data: [2.28, 2.91, 6.32, null],
+      backgroundColor: ['#3b82f6','#06b6d4','#22c55e','#ef4444'],
+      borderRadius: 4,
+      borderSkipped: false
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: '#8a9199', font: { size: 10, family: 'DM Mono' }, callback: v => 'R$' + v.toFixed(2) }, grid: { color: 'rgba(255,255,255,0.05)' }, border: { display: false } },
+      y: { ticks: { color: '#8a9199', font: { size: 10, family: 'DM Mono' } }, grid: { display: false }, border: { display: false } }
+    }
+  }
+});
+</script>
+</body>
+</html>
